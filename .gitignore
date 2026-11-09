@@ -1,0 +1,27 @@
+# Dependencies and build output
+node_modules/
+.expo/
+dist/
+web-build/
+*.tsbuildinfo
+
+# Secrets — never commit API keys
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*.p12
+*.jks
+*.mobileprovision
+
+# Local data and private exports (chat transcript contains keys)
+server/data/
+chat-export/
+*.zip
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
