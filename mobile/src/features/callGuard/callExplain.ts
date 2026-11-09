@@ -2,7 +2,7 @@
  * Call Guard decisions and explanations (pure, unit-tested).
  *
  * 1. Certainty — DaCy interrupts a call by voice only when it is SURE:
- *    the score is critical (≥ 75) AND something sensitive is really being
+ *    the score is at least SURE_MIN_SCORE AND something sensitive is really being
  *    ASKED for (a code, card data, a password, remote access, a transfer…),
  *    not merely mentioned, AND that request is confirmed — either by both the
  *    rules and the AI, or in two analyses in a row. Anything less is shown
@@ -25,14 +25,21 @@ export const isRealRequest = (i: Indicator) => FINANCIAL_REQUESTS.has(i.type) &&
 export type Certainty = 'none' | 'caution' | 'candidate' | 'sure';
 
 /**
+ * A real request (asking verb, never a bare mention — mentions score 0) plus a claimed
+ * authority or pressure reaches this; a clear "tell me your card number and CVV" from
+ * someone posing as the bank must not be missed because one word was mis-transcribed.
+ */
+export const SURE_MIN_SCORE = 65;
+
+/**
  * - caution:   score ≥ 50 — show quietly on screen, no voice, no family alert;
- * - candidate: critical + a real request, not yet confirmed;
+ * - candidate: score ≥ SURE_MIN_SCORE + a real request, not yet confirmed;
  * - sure:      candidate confirmed (rules + AI agree, or `confirmations` ≥ 2).
  */
 export function certainty(a: RiskAssessment | null, confirmations: number): Certainty {
   if (!a) return 'none';
   const requests = a.indicators.filter(isRealRequest);
-  if (a.score >= 75 && requests.length > 0) {
+  if (a.score >= SURE_MIN_SCORE && requests.length > 0) {
     const corroborated = requests.some((i) => i.sources.includes('rules') && i.sources.includes('ai'));
     return corroborated || confirmations >= 2 ? 'sure' : 'candidate';
   }
@@ -127,3 +134,16 @@ export function spokenWarning(a: RiskAssessment): Localized {
   };
   return { en: parts('en'), az: parts('az') };
 }
+
+/**
+ * The text that is scored in a live call: the caller's lines and unattributed speech.
+ * The owner's own lines (reacting, refusing, reading out their own card) never count.
+ */
+export function scoredCallText(lines: readonly { text: string; role: 'caller' | 'owner' | 'unknown' }[]): string {
+  return lines
+    .filter((l) => l.role !== 'owner')
+    .map((l) => l.text)
+    .join(' ')
+    .trim();
+}
+

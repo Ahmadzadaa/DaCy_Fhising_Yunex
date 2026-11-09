@@ -131,3 +131,61 @@ export async function transcribe(file: File, language: SpeechLanguage, config: S
     throw new ApiError('PROVIDER_ERROR', `Speech-to-text provider ${config.provider} returned an unreadable response`);
   }
 }
+
+/* ---------------- Speaker-separated transcription (diarization) ---------------- */
+
+export interface SpeakerSegment {
+  /** Temporary label from the model ("A", "B"…). Only consistent within one upload. */
+  speaker: string;
+  text: string;
+}
+
+const DEFAULT_DIARIZE_MODEL = 'gpt-4o-transcribe-diarize';
+
+/** Diarization runs on OpenAI only and can be switched off with STT_DIARIZE=0. */
+export function getDiarizeModel(config: SttConfig): string | null {
+  if (config.provider !== 'openai') return null;
+  if ((process.env.STT_DIARIZE ?? '').trim() === '0') return null;
+  return process.env.STT_DIARIZE_MODEL?.trim() || DEFAULT_DIARIZE_MODEL;
+}
+
+/**
+ * Splits one audio chunk by speaker (temporary letters A, B…, consecutive segments of
+ * the same speaker merged). Returns null when diarization is off or fails — the plain
+ * transcript is then used without roles. The diarization model is used only for WHERE
+ * the speaker changes: its words are less accurate (it drifts to Turkish on
+ * Azerbaijani speech), so the text itself always comes from `transcribe`.
+ */
+export async function diarizeSegments(file: File, language: SpeechLanguage, config: SttConfig): Promise<SpeakerSegment[] | null> {
+  const model = getDiarizeModel(config);
+  if (!model || file.size < MIN_AUDIO_BYTES) return null;
+  const lang = language === 'en' || language === 'az' ? language : null;
+  const form = new FormData();
+  form.append('file', new File([await file.arrayBuffer()], uploadName(file), { type: file.type || 'application/octet-stream' }));
+  form.append('model', model);
+  form.append('response_format', 'diarized_json');
+  form.append('chunking_strategy', 'auto');
+  if (lang) form.append('language', lang);
+  try {
+    const res = await fetch(`${config.baseUrl}/audio/transcriptions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${config.apiKey}` },
+      body: form,
+      signal: AbortSignal.timeout(STT_TIMEOUT_MS),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json()) as { segments?: { speaker?: unknown; text?: unknown }[] };
+    const merged: SpeakerSegment[] = [];
+    for (const seg of body.segments ?? []) {
+      const text = typeof seg.text === 'string' ? seg.text.trim() : '';
+      if (!text) continue;
+      const speaker = typeof seg.speaker === 'string' && seg.speaker ? seg.speaker : '?';
+      const last = merged[merged.length - 1];
+      if (last && last.speaker === speaker) last.text = `${last.text} ${text}`;
+      else merged.push({ speaker, text });
+    }
+    return merged.length ? merged : null;
+  } catch {
+    return null;
+  }
+}

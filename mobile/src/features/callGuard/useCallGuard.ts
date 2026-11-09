@@ -34,7 +34,8 @@ import { speakWarning } from '@/features/callGuard/speakWarning';
 import { tr } from '@/i18n';
 import { resolveMode } from '@/services/ai/modelProvider';
 import { sendLiveChunk } from '@/services/api/client';
-import { certainty, explainCall, spokenWarning, type CallExplanation, type Certainty } from '@/features/callGuard/callExplain';
+import type { LiveSpeakerRole } from '@/services/api/contract';
+import { certainty, explainCall, scoredCallText, spokenWarning, type CallExplanation, type Certainty } from '@/features/callGuard/callExplain';
 import { assessRisk } from '@/services/security/riskEngine';
 import { useFamily, type AlertDelivery } from '@/state/family';
 import { useHistory } from '@/state/history';
@@ -64,6 +65,8 @@ export interface CallerSelection {
 export interface TranscriptLine {
   seq: number;
   text: string;
+  /** Who said it: the caller (scored), the phone's owner (context only) or unknown (scored). */
+  role: LiveSpeakerRole;
 }
 
 export interface GuardState {
@@ -212,7 +215,7 @@ export function useCallGuard() {
   const segmentTaintedRef = useRef(false);
   const rotatingRef = useRef(false);
   const seqRef = useRef(0);
-  const transcriptRef = useRef<{ seq: number; text: string }[]>([]);
+  const transcriptRef = useRef<TranscriptLine[]>([]);
   const aiRef = useRef<AiIndicator[]>([]);
   const aiActiveRef = useRef(false);
   const warningRef = useRef<0 | 1 | 2>(0);
@@ -255,7 +258,9 @@ export function useCallGuard() {
 
   const rescore = useCallback((session: number): RiskAssessment | null => {
     if (session !== sessionRef.current) return null;
-    const text = transcriptRef.current.map((l) => l.text).join(' ').trim();
+    // Only the caller's words (and unattributed speech) are scored: the owner reacting,
+    // refusing or reading out their own details never changes the risk.
+    const text = scoredCallText(transcriptRef.current);
     const assessment = assessRisk({
       text,
       context: 'call',
@@ -418,7 +423,10 @@ export function useCallGuard() {
     async (uri: string | null, upload: boolean, seq: number, session: number) => {
       try {
         if (uri && upload) {
-          const context = transcriptRef.current.map((l) => l.text).join(' ').slice(-MAX_CONTEXT_CHARS);
+          const context = transcriptRef.current
+            .map((l) => (l.role === 'caller' ? `Caller: ${l.text}` : l.role === 'owner' ? `Owner: ${l.text}` : l.text))
+            .join('\n')
+            .slice(-MAX_CONTEXT_CHARS);
           const analyze = aiActiveRef.current && pendingRef.current <= 1;
           sentRef.current += 1;
           setState((s) => ({ ...s, chunksSent: sentRef.current }));
@@ -433,7 +441,9 @@ export function useCallGuard() {
           if (session !== sessionRef.current) return;
           if (res.ok) {
             const text = res.data.text.trim();
-            if (text) transcriptRef.current.push({ seq, text });
+            const segments = res.data.segments?.filter((sg) => sg.text.trim()) ?? [];
+            if (segments.length) for (const sg of segments) transcriptRef.current.push({ seq, text: sg.text.trim(), role: sg.role });
+            else if (text) transcriptRef.current.push({ seq, text, role: 'unknown' });
             if (res.data.ai) {
               aiRef.current = mergeAi(aiRef.current, res.data.ai.indicators);
               const aiSummary = res.data.ai.summary?.trim() || null;

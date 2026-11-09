@@ -108,9 +108,18 @@ export interface TranscribeResponse {
  *   context:    previous transcript window (<= 2000 chars) — server is stateless and stores nothing
  *   analyze:    "1" to run AI indicator extraction on context + new text, "0" for transcription only
  */
+/** Who said a line in a live call: the CALLER (heard on speaker) or the phone's OWNER. */
+export type LiveSpeakerRole = 'caller' | 'owner' | 'unknown';
+export interface LiveSegment {
+  role: LiveSpeakerRole;
+  text: string;
+}
+
 export interface LiveChunkResponse {
   seq: number;
   text: string;
+  /** The same text split by speaker (diarization + role assignment); one 'unknown' segment when unavailable. */
+  segments?: LiveSegment[];
   ai: AiTextAnalysis | null;
   aiError: ApiErrorCode | null;
   model: string | null;

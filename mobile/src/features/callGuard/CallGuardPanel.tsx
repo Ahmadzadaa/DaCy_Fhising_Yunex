@@ -64,6 +64,9 @@ const S = defineStrings({
     band_critical: 'Critical',
     showTranscript: 'Transcript and details',
     pending: 'DaCy will warn you aloud as soon as the caller pauses — it will not cut in mid-sentence.',
+    callerLabel: 'Caller',
+    ownerLabel: 'You',
+    ownerNote: 'Only the caller’s words are scored. Your own replies never change the risk.',
   },
   az: {
     howTitle: 'Zəng qoruması necə işləyir',
@@ -111,6 +114,9 @@ const S = defineStrings({
     band_critical: 'Kritik',
     showTranscript: 'Transkript və detallar',
     pending: 'Zəng edən susan kimi DaCy sizi səsli xəbərdar edəcək — sözünü yarıda kəsməyəcək.',
+    callerLabel: 'Zəng edən',
+    ownerLabel: 'Siz',
+    ownerNote: 'Yalnız zəng edənin sözləri qiymətləndirilir. Sizin cavablarınız riskə təsir etmir.',
   },
 });
 
@@ -365,8 +371,13 @@ export function CallGuardPanel() {
           ) : null}
           <AppText variant="caption">{t.transcript}</AppText>
           {state.lines.length ? (
-            state.lines.map((line) => (
-              <AppText key={`${line.seq}-${line.text.slice(0, 12)}`} variant="body">
+            state.lines.map((line, i) => (
+              <AppText key={`${line.seq}-${i}-${line.text.slice(0, 12)}`} variant="body" color={line.role === 'owner' ? colors.textSecondary : colors.text}>
+                {line.role !== 'unknown' ? (
+                  <AppText variant="bodyStrong" color={line.role === 'owner' ? colors.textSecondary : colors.text}>
+                    {line.role === 'caller' ? t.callerLabel : t.ownerLabel}:{' '}
+                  </AppText>
+                ) : null}
                 {line.text}
               </AppText>
             ))
@@ -375,6 +386,11 @@ export function CallGuardPanel() {
               {t.waiting}
             </AppText>
           )}
+          {state.lines.some((l) => l.role === 'owner') ? (
+            <AppText variant="small" color={colors.textMuted}>
+              {t.ownerNote}
+            </AppText>
+          ) : null}
           <AppText variant="small" color={colors.textMuted}>
             {fmt(t.chunks, { n: state.chunksAnalyzed, sent: state.chunksSent })}
             {state.lastLatency ? ` · ${fmt(t.latency, { stt: state.lastLatency.stt, ai: state.lastLatency.ai })}` : ''}

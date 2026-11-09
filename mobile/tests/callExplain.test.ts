@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
-import { certainty, explainCall, isMention, spokenWarning } from '@/features/callGuard/callExplain';
+import { certainty, explainCall, isMention, scoredCallText, spokenWarning } from '@/features/callGuard/callExplain';
 import { assessRisk } from '@/services/security/riskEngine';
 import type { AiIndicator } from '@/types/security';
 
@@ -89,3 +89,25 @@ describe('explanations quote the caller', () => {
     assert.match(s.en, /card details/);
   });
 });
+
+describe('caller / owner separation', () => {
+  const lines = [
+    { role: 'caller' as const, text: 'Salam, bankın təhlükəsizlik şöbəsindən zəng edirəm. Kartınız bloka düşüb.' },
+    { role: 'owner' as const, text: 'Yox, mən CVV kodunu heç kimə demərəm. Kartımın nömrəsi 4169 1234 5678 9012-dir.' },
+    { role: 'caller' as const, text: 'Bloku açmaq üçün mənə kart nömrənizi və CVV kodunu deyin.' },
+  ];
+  test('only the caller’s words are scored', () => {
+    const text = scoredCallText(lines);
+    assert.ok(!text.includes('demərəm') && !text.includes('4169'));
+    assert.ok(text.includes('CVV kodunu deyin'));
+  });
+  test('the owner refusing does not lower the risk of the caller’s request', () => {
+    const callerOnly = assessRisk({ text: scoredCallText(lines), context: 'call' });
+    assert.equal(callerOnly.indicators.find((i) => i.type === 'PROTECTIVE_ADVICE'), undefined);
+    assert.equal(certainty(callerOnly, 2), 'sure');
+  });
+  test('unattributed speech (no diarization) is still scored', () => {
+    assert.equal(scoredCallText([{ role: 'unknown', text: 'kodu deyin' }]), 'kodu deyin');
+  });
+});
+

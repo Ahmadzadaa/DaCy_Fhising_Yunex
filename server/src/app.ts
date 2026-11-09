@@ -38,6 +38,8 @@ import {
   type LeaveFamilyResponse,
   type ListAlertsResponse,
   type LiveChunkResponse,
+  type LiveSegment,
+  type LiveSpeakerRole,
   type PostAlertResponse,
   type TranscribeResponse,
   type UpdateChildSettingsResponse,
@@ -57,10 +59,14 @@ import {
 } from './http.js';
 import { analyzeImage, analyzeText } from './llm.js';
 import { RateLimiter } from './rateLimit.js';
-import { requireStt, transcribe } from './stt.js';
+import { splitByRole } from './roles.js';
+import { diarizeSegments, requireStt, transcribe } from './stt.js';
 import { requireTts, synthesize, TTS_MAX_CHARS } from './tts.js';
 import { inspectUrl } from './urlInspect.js';
 
+
+/** Labels used in the AI window for live calls (see prompt.ts, call transcripts). */
+const ROLE_LABEL: Record<LiveSpeakerRole, string> = { caller: 'Caller', owner: 'Owner', unknown: '' };
 const KB = 1024;
 const MB = 1024 * KB;
 const JSON_LIMIT = 256 * KB;
@@ -257,14 +263,19 @@ app.post('/v1/live/chunk', async (c) => {
   const analyze = formString(fields, 'analyze')?.trim() === '1';
 
   const sttStarted = performance.now();
-  const transcript = await transcribe(audio, language, stt);
+  // Accurate words + (in parallel) where the speaker changes; then split the words into
+  // caller / owner pieces so only the caller's words are scored (see roles.ts).
+  const [transcript, hints] = await Promise.all([transcribe(audio, language, stt), diarizeSegments(audio, language, stt)]);
+  const segments: LiveSegment[] = await splitByRole(context, transcript.text, hints);
   const sttMs = Math.round(performance.now() - sttStarted);
 
   let ai: AiTextAnalysis | null = null;
   let aiError: ApiErrorCode | null = null;
   let model: string | null = null;
   let aiMs = 0;
-  const window = [context, transcript.text]
+  // Unknown speaker (no diarization) stays unlabelled, exactly as before.
+  const labelled = segments.map((sg) => (sg.role === 'unknown' ? sg.text : `${ROLE_LABEL[sg.role]}: ${sg.text}`)).join('\n');
+  const window = [context, labelled]
     .filter((part) => part.trim().length > 0)
     .join('\n')
     .slice(-LIVE_WINDOW_CHARS);
@@ -283,6 +294,7 @@ app.post('/v1/live/chunk', async (c) => {
   const response: LiveChunkResponse = {
     seq,
     text: transcript.text,
+    segments,
     ai,
     aiError,
     model,

@@ -398,6 +398,9 @@ export const LEXICON: readonly LexiconPattern[] = [
   p('authority.az.bankSecurity', 'AUTHORITY_IMPERSONATION', 0.9, 'az',
     /\b[a-z]*bank\S*\s+(?:kiber\s*)?(?:tehlukesizlik|kibertehlukesizlik|anti-?fraud|monitorinq|risk)\s+(?:sobe|xidmet|departament|bolme|merkez)\w*/g),
   p('authority.az.security', 'AUTHORITY_IMPERSONATION', 0.8, 'az', /\b(?:kiber\s*)?(?:kiber)?tehlukesizlik\s+(?:sobe|xidmet|departament)\w*/g),
+  // "…şöbəsindən zəng edirəm / yığmışam": someone calls on behalf of a department.
+  p('authority.az.department', 'AUTHORITY_IMPERSONATION', 0.7, 'az',
+    /\b(?:sobe|departament|bolme|xidmet)(?:si|miz)?(?:n)?den\s+(?:\S+\s+){0,1}?(?:zeng\s+edir\w*|yigmis\w*|yigiram|narahat\s+edir\w*)/g),
   p('authority.az.police', 'AUTHORITY_IMPERSONATION', 0.85, 'az',
     /\b(?:polis(?:in|e|den|ler|lerin|idir)?|prokuror\w*|mustentiq\w*|kibercinayet\w*|cinayet\s+axtaris\w*|daxili\s+isler\s+nazirliy\w*|dovlet\s+tehlukesizlik\w*|merkezi\s+bank\w*)\b/g),
   p('authority.az.state', 'AUTHORITY_IMPERSONATION', 0.75, 'az',
@@ -443,7 +446,7 @@ export const LEXICON: readonly LexiconPattern[] = [
   p('threat.en.loan', 'THREAT_OR_FEAR', 0.75, 'en',
     /\b(?:loan|credit)\s+(?:in|on|under)\s+your\s+name\b/g),
   p('threat.az.blocked', 'THREAT_OR_FEAR', 0.85, 'az',
-    /\b(?:bloklan|dondurul)(?:ib|acaq|di|mis|ir|ar|masi|ma)\w*|\b(?:kart|hesab)\w*\s+(?:\S+\s+){0,2}?baglan(?:ib|acaq|di|mis)\w*/g),
+    /\b(?:bloklan|dondurul)(?:ib|acaq|di|mis|ir|ar|masi|ma)\w*|\bblok(?:a|un)?\s+(?:dus|sal|al)\w*|\b(?:kart|hesab)\w*\s+(?:\S+\s+){0,2}?baglan(?:ib|acaq|di|mis)\w*/g),
   p('threat.az.legal', 'THREAT_OR_FEAR', 0.85, 'az',
     /\b(?:hebs\w*|cerime\w*|cinayet\s+is\w*|cinayet\s+mesuliyyet\w*|mesuliyyete\s+celb\w*|mehkemeye\s+veril\w*|axtarisa\s+veril\w*)/g),
   p('threat.az.lose', 'THREAT_OR_FEAR', 0.75, 'az',

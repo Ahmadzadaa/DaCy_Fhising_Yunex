@@ -276,6 +276,7 @@ describe('routes with a mocked Claude', () => {
     const body = (await res.json()) as LiveChunkResponse;
     assert.equal(body.seq, 4);
     assert.equal(body.text, 'tell me the code from the SMS');
+    assert.deepEqual(body.segments, [{ role: 'unknown', text: 'tell me the code from the SMS' }]);
     assert.equal(body.aiError, null);
     assert.equal(body.model, 'claude-opus-5-5');
 

@@ -167,9 +167,11 @@ const overlaps = (a: RawMatch, b: RawMatch) => a.start < b.end && b.start < a.en
  * "tell / read / send me…", "deyin / oxuyun / göndərin / mənə…". Without one, "CVV" or
  * "the code from the SMS" is only a MENTION (a bank explaining, a warning, small talk).
  * Bare AZ "de" (= "also") and "want" are left out on purpose: they are too common.
+ * An accusative "your X" object ("kart nömrənizi", "CVV-ni", "kodunu") also counts: speech-to-text
+ * often garbles the verb itself ("deyin" → "deyim"), but the object still shows something is wanted.
  */
 const ASK_CUE_RE =
-  /\b(?:tell|read|send|give|say|share|provide|enter|type|confirm|dictate|repeat|spell|need|what\s+is|what's|let\s+me\s+know|deyin|soyleyin|soyle|oxuyun|oxuyasiniz|yazin|gonderin|gonder|verin|bildirin|bildir|tesdiqleyin|tesdiqle|daxil\s+edin|diqte\s+edin|qeyd\s+edin|lazimdir|lazim|nedir|mene|bize)\b/;
+  /\b(?:tell|read|send|give|say|share|provide|enter|type|confirm|dictate|repeat|spell|need|what\s+is|what's|let\s+me\s+know|deyin|soyleyin|soyle|oxuyun|oxuyasiniz|yazin|gonderin|gonder|verin|bildirin|bildir|tesdiqleyin|tesdiqle|daxil\s+edin|diqte\s+edin|qeyd\s+edin|lazimdir|lazim|nedir|mene|bize|deyersiniz|soyleyersiniz|oxuyarsiniz|gondererseniz|gonderersiniz|yazarsiniz|vererseniz|verersiniz|deye\s+bilersiniz|demelisiniz|vermelisiniz|nomrenizi|nomresini|kodunu|kodlari|cvv-?ni|cvc-?ni|pin-?i|pin-?kodunu|sifrenizi|melumatlarinizi|rekvizitlerinizi)\b/;
 /** Confidence of a sensitive-data mention with no request verb: visible, but never alarming. */
 export const MENTION_CONFIDENCE = 0.25;
 const isRequest = (m: RawMatch) => REQUEST_SET.has(m.type) && m.kind === undefined;
